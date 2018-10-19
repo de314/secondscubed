@@ -3,8 +3,11 @@ import _ from "lodash";
 import moment from "moment";
 import classnames from "classnames";
 import { ts } from "../../utils";
+import { selectSessionHistorySlice } from "../../rdx/selectors";
+import { addSolve } from "../../rdx/actions";
 
 import { compose, lifecycle, withHandlers, withState } from "recompose";
+import { connect } from "react-redux";
 
 import { Badge } from "reactstrap";
 
@@ -38,7 +41,33 @@ let DurationDisplay = ({ duration, sms }) => (
   </div>
 );
 
-const TimerView = ({ timerState }) => (
+const SessionHistoryList = ({ cubeSession }) => (
+  <div className="SessionHistoryList">
+    <table className="table table-striped table-hover">
+      <thead>
+        <tr>
+          <td>Date</td>
+          <td>Solve Time</td>
+        </tr>
+      </thead>
+      <tbody>
+        {cubeSession.solves.map((solve, i) => {
+          const m = moment(solve.startTime);
+          return (
+            <tr key={i}>
+              <td>
+                {m.format("lll")} ({m.fromNow()})
+              </td>
+              <td>{ts(moment.duration(solve.duration))}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+);
+
+const TimerView = ({ timerState, cubeSession }) => (
   <div className="TimerView">
     <DurationDisplay duration={timerState.duration} sms={timerState.sms} />
     {timerState.laps.map((lap, i) => (
@@ -47,6 +76,7 @@ const TimerView = ({ timerState }) => (
       </Badge>
     ))}
     <div>{timerState.sms}</div>
+    <SessionHistoryList cubeSession={cubeSession} />
   </div>
 );
 
@@ -60,6 +90,14 @@ const getInitialState = (sms = STOPPED) => ({
 });
 
 export default compose(
+  connect(
+    state => ({
+      cubeSession: selectSessionHistorySlice(state)
+    }),
+    dispatch => ({
+      publishSolve: solve => dispatch(addSolve(solve))
+    })
+  ),
   withState("timerState", "setTimerState", () => getInitialState()),
   withHandlers({
     updateDuration: ({ timerState, setTimerState }) => duration => {
@@ -87,7 +125,7 @@ export default compose(
         handle: setInterval(updateDuration, 30)
       });
     },
-    stop: ({ timerState, setTimerState }) => () => {
+    stop: ({ publishSolve, timerState, setTimerState }) => () => {
       const endTime = new Date().getTime();
       if (!_.isNil(timerState.handle)) {
         clearInterval(timerState.handle);
@@ -98,6 +136,12 @@ export default compose(
         duration: moment.duration(endTime - timerState.startTime),
         sms: ENDED,
         handle: null
+      });
+      publishSolve({
+        startTime: timerState.startTime,
+        laps: timerState.laps.map(duration => duration.asMilliseconds()),
+        endTime,
+        duration: endTime - timerState.startTime
       });
     },
     addLap: ({ timerState, setTimerState }) => () => {
