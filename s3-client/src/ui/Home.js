@@ -2,7 +2,7 @@ import React from "react";
 
 import { compose } from "recompose";
 
-const Home = ({}) => (
+const Home = () => (
   <div className="Home">
     <h1>Welcome Home!</h1>
   </div>
